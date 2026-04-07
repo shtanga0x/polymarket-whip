@@ -6,12 +6,12 @@ A Chrome extension that lets you crack the whip on Polymarket prediction market 
 
 | Action | Effect |
 |---|---|
-| **Space + W** (1st) | Whip spawns at your cursor — move the mouse fast to crack it. Probability bumps up. |
-| **Space + W** (2nd) | Another crack — probability climbs higher. |
-| **Space + W** (3rd) | Final crack — probability hits **100%** + celebration confetti 🎉 |
-| **Space + W** (4th) | Everything resets to the original state. Deactivated until page reload. |
+| **Space + W** | Whip spawns at your cursor — move the mouse fast to crack it |
+| **Each crack** | Probability climbs ~35% closer to 100% |
+| **At 100%** | Celebration confetti fires on every crack 🎉 |
+| **Popup toggle** | Click the extension icon to enable / disable instantly |
 
-Visual effects only — no interaction with any API or real market data.
+Unlimited uses. Visual effects only — no interaction with any API or real market data.
 
 ## Install (Developer Mode)
 
