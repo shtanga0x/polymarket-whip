@@ -3,7 +3,7 @@
   "name": "Polymarket Whip",
   "version": "1.0.0",
   "description": "Crack the whip on Polymarket charts. Space+W to activate.",
-  "permissions": [],
+  "permissions": ["storage"],
   "host_permissions": [
     "*://polymarket.com/*",
     "*://*.polymarket.com/*"
@@ -36,6 +36,7 @@
       "48":  "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "Polymarket Whip — Space+W to activate"
+    "default_title": "Polymarket Whip — Space+W to activate",
+    "default_popup": "popup.html"
   }
 }

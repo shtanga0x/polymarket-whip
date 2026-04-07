@@ -1,11 +1,11 @@
 /**
  * Polymarket Whip — content script
  *
- * Space+W  → spawn whip at cursor
+ * Space+W  → spawn whip at cursor (unlimited uses)
  * Move mouse fast to crack it at the chart
- * Each crack bumps the probability display upward
- * 3rd crack → 100% + celebration
- * 4th Space+W → full reset, deactivated until page reload
+ * Each crack bumps the probability display upward by ~10%
+ * At 100% every crack triggers celebration confetti
+ * Toggle on/off from the extension popup
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,8 +51,8 @@ const P = {
 // ─────────────────────────────────────────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────────────────────────────────────────
-let hitCount      = 0;          // number of successful cracks (0-3)
-let deactivated   = false;      // true after 4th Space+W — until page reload
+let whipEnabled   = true;       // controlled by popup toggle
+let currentPct    = null;       // current displayed probability (our value)
 let whipPoints    = null;       // physics chain
 let dropping      = false;
 let whipActive    = false;      // is a whip currently alive?
@@ -73,6 +73,24 @@ let rafId      = null;
 
 // Snapshot of original probability text before we touched anything
 let originalProbText = null;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  POPUP TOGGLE — listen for enable/disable from popup.js
+// ─────────────────────────────────────────────────────────────────────────────
+chrome.storage.local.get('whipEnabled', res => {
+  whipEnabled = res.whipEnabled !== false; // default on
+});
+chrome.storage.onChanged.addListener((changes) => {
+  if ('whipEnabled' in changes) {
+    whipEnabled = changes.whipEnabled.newValue;
+    if (!whipEnabled) {
+      // Kill any active whip immediately
+      whipPoints = null;
+      whipActive = false;
+      dropping   = false;
+    }
+  }
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  HELPERS
@@ -119,7 +137,7 @@ function findProbabilityEl() {
     const txt = el.textContent.trim();
     if (!/^\d{1,3}%$/.test(txt)) continue;        // must be "XX%"
     const num = parseInt(txt);
-    if (num < 1 || num > 99) continue;            // skip 0% or 100% — already done
+    if (num < 1 || num > 100) continue;
     const rect = el.getBoundingClientRect();
     if (rect.top > window.innerHeight * 0.6) continue; // must be near top
     const fs = parseFloat(getComputedStyle(el).fontSize) || 0;
@@ -612,29 +630,33 @@ function renderWhip() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ON CRACK — chart boost logic
+//  ON CRACK — unlimited chart boost logic
 // ─────────────────────────────────────────────────────────────────────────────
 function onWhipCrack() {
-  if (hitCount >= 3) return;
-
   snapshotOriginals();
-
-  hitCount++;
   dropping = true;   // whip flies off after crack
 
-  if (hitCount === 3) {
-    // ── Hit 3: go to 100%, celebrate ──────────────────────────────────────
-    setProbabilityText(100);
-    boostChartLine(0.28); // shift line most of the way to the top
+  // Track our displayed value independently of the real DOM
+  if (currentPct === null) currentPct = originalProbText ?? 50;
+
+  if (currentPct >= 100) {
+    // Already at 100% — just celebrate on every crack
     setTimeout(spawnCelebration, 150);
-  } else {
-    // ── Hit 1 or 2: partial boost ─────────────────────────────────────────
-    const boost      = originalProbText ?? 50;
-    const remaining  = 100 - boost;
-    // hit 1 → add 1/3 of remaining, hit 2 → add 2/3 of remaining
-    const newVal = boost + (remaining * hitCount / 3);
-    setProbabilityText(newVal);
-    boostChartLine(0.09 * hitCount);  // subtle upward shift each hit
+    return;
+  }
+
+  // Boost by ~10% of remaining gap each crack, minimum +5
+  const remaining = 100 - currentPct;
+  const boost     = Math.max(5, Math.round(remaining * 0.35));
+  currentPct      = Math.min(100, currentPct + boost);
+
+  setProbabilityText(currentPct);
+  // Shift chart line proportionally: full shift = 0.30 of chart height at 100%
+  const fraction = (currentPct - (originalProbText ?? 50)) / Math.max(1, 100 - (originalProbText ?? 50));
+  boostChartLine(fraction * 0.30);
+
+  if (currentPct >= 100) {
+    setTimeout(spawnCelebration, 150);
   }
 }
 
@@ -658,28 +680,13 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     e.stopImmediatePropagation();
 
-    if (deactivated) return;
+    if (!whipEnabled) return;
+    if (whipActive)   return;   // whip already flying
 
-    if (hitCount >= 3) {
-      // 4th activation — reset everything and deactivate
-      restoreOriginals();
-      hitCount      = 0;
-      whipPoints    = null;
-      whipActive    = false;
-      dropping      = false;
-      deactivated   = true;
-
-      // Fade out confetti immediately if still running
-      if (confettiCanvas) { confettiCanvas.remove(); confettiCanvas = null; }
-      return;
-    }
-
-    if (whipActive) return;   // whip already flying
-
-    whipActive  = true;
-    handleAngle = P.baseTargetAngle;
+    whipActive   = true;
+    handleAngle  = P.baseTargetAngle;
     handleAngVel = 0;
-    whipPoints  = spawnWhip(mouseX, mouseY);
+    whipPoints   = spawnWhip(mouseX, mouseY);
   }
 });
 
